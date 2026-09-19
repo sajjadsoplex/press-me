@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../data/stages.dart';
@@ -19,7 +21,17 @@ class _PressMeScreenState extends State<PressMeScreen>
 
   bool isLaunching = false;
 
+  // ---------------------------------------------------------------
+  // 9TH PRESS ESCAPE LOGIC
+  // ---------------------------------------------------------------
+
+  int ninthPressAttempts = 0;
+
+  Offset buttonOffset = Offset.zero;
+
   late final AnimationController _buttonController;
+
+  late final AnimationController _escapeController;
 
   @override
   void initState() {
@@ -29,11 +41,17 @@ class _PressMeScreenState extends State<PressMeScreen>
       vsync: this,
       duration: const Duration(milliseconds: 180),
     );
+
+    _escapeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
   }
 
   @override
   void dispose() {
     _buttonController.dispose();
+    _escapeController.dispose();
     super.dispose();
   }
 
@@ -42,7 +60,7 @@ class _PressMeScreenState extends State<PressMeScreen>
   }
 
   // ---------------------------------------------------------------
-  // PRESS BUTTON
+  // BUTTON PRESS
   // ---------------------------------------------------------------
 
   void pressButton() {
@@ -50,16 +68,96 @@ class _PressMeScreenState extends State<PressMeScreen>
 
     if (pressCount >= 9) return;
 
+    // =============================================================
+    // SPECIAL 9TH PRESS
+    // =============================================================
+
+    if (pressCount == 8) {
+      ninthPressAttempts++;
+
+      // First three attempts:
+      // THE BUTTON RUNS AWAY 😈
+      if (ninthPressAttempts <= 3) {
+        _runAway();
+
+        return;
+      }
+
+      // Fourth attempt:
+      // Button is back in original position.
+      buttonOffset = Offset.zero;
+
+      setState(() {
+        isLaunching = true;
+      });
+
+      _playButtonPress();
+
+      return;
+    }
+
+    // =============================================================
+    // NORMAL PRESSES 1–8
+    // =============================================================
+
     setState(() {
       isLaunching = true;
     });
 
-    // Quick button press effect.
+    _playButtonPress();
+  }
+
+  // ---------------------------------------------------------------
+  // NORMAL BUTTON PRESS ANIMATION
+  // ---------------------------------------------------------------
+
+  void _playButtonPress() {
     _buttonController.forward().then((_) {
       if (mounted) {
         _buttonController.reverse();
       }
     });
+  }
+
+  // ---------------------------------------------------------------
+  // MAKE BUTTON RUN AWAY
+  // ---------------------------------------------------------------
+
+  void _runAway() {
+    final random = Random();
+
+    final screenSize = MediaQuery.of(context).size;
+
+    // Keep the button away from the edges.
+    final maxX = max(
+      40.0,
+      min(
+        180.0,
+        screenSize.width * 0.28,
+      ),
+    );
+
+    final maxY = max(
+      80.0,
+      min(
+        220.0,
+        screenSize.height * 0.22,
+      ),
+    );
+
+    double x;
+    double y;
+
+    do {
+      x = (random.nextDouble() * 2 - 1) * maxX;
+      y = (random.nextDouble() * 2 - 1) * maxY;
+    } while (x.abs() < 60 && y.abs() < 60);
+
+    setState(() {
+      buttonOffset = Offset(x, y);
+    });
+
+    _escapeController.forward(from: 0);
   }
 
   // ---------------------------------------------------------------
@@ -72,6 +170,7 @@ class _PressMeScreenState extends State<PressMeScreen>
     setState(() {
       pressCount++;
       isLaunching = false;
+      buttonOffset = Offset.zero;
     });
   }
 
@@ -89,23 +188,23 @@ class _PressMeScreenState extends State<PressMeScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ---------------------------------------------------------
+          // =========================================================
           // BACKGROUND
-          // ---------------------------------------------------------
+          // =========================================================
 
           StageBackground(
             stage: pressCount,
           ),
 
-          // ---------------------------------------------------------
-          // FLOATING PARTICLES
-          // ---------------------------------------------------------
+          // =========================================================
+          // PARTICLES
+          // =========================================================
 
           const FloatingParticles(),
 
-          // ---------------------------------------------------------
+          // =========================================================
           // MAIN CONTENT
-          // ---------------------------------------------------------
+          // =========================================================
 
           SafeArea(
             child: Center(
@@ -119,9 +218,9 @@ class _PressMeScreenState extends State<PressMeScreen>
                   children: [
                     const Spacer(),
 
-                    // ------------------------------------------------
+                    // -------------------------------------------------
                     // STAGE COUNTER
-                    // ------------------------------------------------
+                    // -------------------------------------------------
 
                     AnimatedSwitcher(
                       duration: const Duration(
@@ -141,9 +240,9 @@ class _PressMeScreenState extends State<PressMeScreen>
 
                     const SizedBox(height: 30),
 
-                    // ------------------------------------------------
+                    // -------------------------------------------------
                     // STAGE TEXT
-                    // ------------------------------------------------
+                    // -------------------------------------------------
 
                     AnimatedSwitcher(
                       duration: const Duration(
@@ -184,9 +283,9 @@ class _PressMeScreenState extends State<PressMeScreen>
 
                     const SizedBox(height: 55),
 
-                    // ------------------------------------------------
+                    // -------------------------------------------------
                     // PRESS BUTTON
-                    // ------------------------------------------------
+                    // -------------------------------------------------
 
                     if (!isLaunching)
                       AnimatedBuilder(
@@ -200,25 +299,38 @@ class _PressMeScreenState extends State<PressMeScreen>
                             child: child,
                           );
                         },
-                        child: _PressButton(
-                          onPressed: pressButton,
+                        child: AnimatedContainer(
+                          duration: const Duration(
+                            milliseconds: 220,
+                          ),
+                          curve: Curves.easeOutBack,
+                          transform: Matrix4.translationValues(
+                            buttonOffset.dx,
+                            buttonOffset.dy,
+                            0,
+                          ),
+                          child: _PressButton(
+                            onPressed: pressButton,
+                          ),
                         ),
                       ),
 
                     const Spacer(),
 
-                    // ------------------------------------------------
+                    // -------------------------------------------------
                     // BOTTOM LABEL
-                    // ------------------------------------------------
+                    // -------------------------------------------------
 
                     AnimatedOpacity(
                       opacity: isLaunching ? 0 : 1,
                       duration: const Duration(
                         milliseconds: 150,
                       ),
-                      child: const Text(
-                        'PRESS',
-                        style: TextStyle(
+                      child: Text(
+                        pressCount == 8
+                            ? 'PRESS'
+                            : 'PRESS',
+                        style: const TextStyle(
                           color: Color(0xFF555A63),
                           fontSize: 10,
                           letterSpacing: 5,
@@ -231,9 +343,9 @@ class _PressMeScreenState extends State<PressMeScreen>
             ),
           ),
 
-          // ---------------------------------------------------------
-          // ROCKET + SPARK EFFECT
-          // ---------------------------------------------------------
+          // =========================================================
+          // ROCKET
+          // =========================================================
 
           if (isLaunching)
             Positioned.fill(
@@ -247,9 +359,9 @@ class _PressMeScreenState extends State<PressMeScreen>
   }
 }
 
-// =================================================================
+// ==================================================================
 // PRESS BUTTON
-// =================================================================
+// ==================================================================
 
 class _PressButton extends StatefulWidget {
   final VoidCallback onPressed;
@@ -287,7 +399,8 @@ class _PressButtonState extends State<_PressButton>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final glow = 0.12 + (_controller.value * 0.10);
+        final glow =
+            0.12 + (_controller.value * 0.10);
 
         return GestureDetector(
           onTap: widget.onPressed,
